@@ -79,3 +79,12 @@ scope on real hardware.
 FM broadcast receiver 0x10 and LIS2DW12 accelerometer 0x19 (man down, `shared/hal/accel.c` with the stock set-up
 values of `FUN_0803e148`). cfw driver `drivers/i2c.c` (push-pull, SDA switched to input pull-up to read, as stock
 `FUN_0808dfdc`).
+
+## Signalling: QDC1200 = MDC1200, DTMF / 2-tone / 5-tone (2026-11-23)
+* Same MDC1200 coder as the D890UV (libmdc1200 structure): decoder `FUN_08011000` on the TIM6 samples (4 bit phases),
+  sync step `FUN_08013000` with `popcount(.. ^ 7)` and the 32-bit constant at 0x08013130 = 0x092A446F, 112 bits -> `FUN_08014000`;
+  encoder `FUN_080a108c(0x2580)` = 9600 Hz, double packet `FUN_080a10d4`, single `FUN_080a1140` (wrappers
+  `FUN_080a0f8c` / `FUN_080a0fe0`), samples played by TIM5 into CCR4 (above). The radio and its CPS call it QDC1200.
+* cfw: shared `app/sig.c` (see `shared/docs/AUDIO_PATHS.md` "Signalling"): QDC1200 Setting = encode list, QDC1200
+  Decode "Self ID - Private / Group Call" = own ids (call alerts to them ring alert 1 / 2), QDC Address Book = names.
+  `shared/tools/sig_test.py --radio d168`: 29/29 PASS (emulator).

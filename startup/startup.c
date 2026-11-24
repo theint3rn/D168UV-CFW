@@ -25,6 +25,7 @@ void PendSV_Handler(void) WEAK;
 void SysTick_Handler(void) WEAK;
 void EXTI9_5_IRQHandler(void) WEAK;     /* IRQ 23: channel encoder PC8 / PC9 */
 void USART1_IRQHandler(void) WEAK;      /* IRQ 37: CPS programming link */
+void USART4_IRQHandler(void) WEAK;
 void USART2_IRQHandler(void) WEAK;      /* IRQ 38: GPS NMEA (shared app/gps.c) */
 
 #define NIRQ 85
@@ -47,6 +48,7 @@ const vec_t g_vectors[16 + NIRQ] = {
     [16 + IRQ_EXTI9_5] = EXTI9_5_IRQHandler,
     [16 + IRQ_USART1] = USART1_IRQHandler,
     [16 + 38] = USART2_IRQHandler,
+    [16 + 52] = USART4_IRQHandler,          /* Bluetooth module (drivers/bt.c) */
 };
 
 /* Bootloader hand-over (pre-flash audit F4): the stock bootloader's exit state is unknown, so do not trust it.

@@ -48,11 +48,15 @@ void audio_poll(void) { }
  * {01 51} for Indoor, {1F 40} otherwise (stock RAM 0x2000CC90). Frames seen in the stock emulator's baseband.log when
  * the menu value changes: "84 A9 61 00 03 00 69 01 51 00" + "84 A9 61 00 02 40 08 10" (Level 8 -> Indoor),
  * "00 69 1F 40" + "40 08 0E" (Indoor -> Level 1). The analog volume knob stays in front of it. */
+static uint8_t s_att;
+uint8_t audio_codec_att(void) { return s_att; }
+
 void audio_volume_limit(uint8_t maxvol)
 {
     static const uint8_t att[9] = { 0x10, 0x0E, 0x0C, 0x0A, 0x08, 0x06, 0x04, 0x02, 0x00 };
     static const uint8_t indoor[2] = { 0x01, 0x51 }, normal[2] = { 0x1F, 0x40 };
     if(maxvol > 8) { maxvol = 8; }
+    s_att = att[maxvol];
     (void)bb_send(0x00, 0x69, maxvol == 0 ? indoor : normal, 2);
     (void)bb_send(0x40, 0x08, &att[maxvol], 1);
 }

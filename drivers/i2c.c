@@ -85,3 +85,14 @@ bool i2c_reg_read(uint8_t a7, uint8_t reg, uint8_t *v)
     stop();
     return ok;
 }
+
+/* raw write (FM receiver: RDA5807-style sequential register writes, stock FUN_0803a77c) */
+bool i2c_write(uint8_t a7, const uint8_t *d, int n)
+{
+    init();
+    start();
+    bool ok = put((uint8_t)(a7 << 1));
+    for(int i = 0; ok && i < n; i++) { ok = put(d[i]); }
+    stop();
+    return ok;
+}

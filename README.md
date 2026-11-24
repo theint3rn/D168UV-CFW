@@ -3,7 +3,7 @@
 The D890UV custom firmware ported to the AnyTone **D168UV** (Artery AT32F403A, Cortex-M4F, 1 MB flash, 224 KB SRAM).
 All digital modes (DMR incl. Tier III, P25 Phase 1/2 incl. trunking, D-STAR, NXDN, YSF), analog FM,
 simplex / talkaround / CC-NAC-RAN-DG-ID filters, MCU-DSP demodulators + PWM (PB9) TX audio path, vocoder backends
-(sine / IMBE / SCT3288), the "D8CP" codeplug and the PROGRAM/R/W CPS link.
+(sine / IMBE / SCT3288 with the chip's mic and speaker, `../../D890UV/D890UV_src/cfw/docs/SCT3288_VOCODER.md`), the "D8CP" codeplug and the PROGRAM/R/W CPS link.
 
 **Nothing here has been run on a real radio. Never flash `make EMU=1` builds; use `make HW=1` and the guarded
 `D890UV_src/tools/hw` flow (owner's OK) — and never touch 0x08000000–0x08003FFF (bootloader).**
@@ -130,6 +130,12 @@ description and settings table in `shared/README.md` "UI v0.3"). The Makefile no
 
 * Portrait 128x160: menu lists show 11 rows; the RSSI sits on its own line above the soft keys; the clock is not shown in
   the status bar (no room); soft key text `PF2:VFO` / `PF2:MEM`.
+* Battery percent (Settings > Battery = Icon / Percent, shared `app/battdisp.c`): default `CFW_BATT_CURVE`, no D168
+  override. Stock V1.07 voltages: icon steps 6.45 / 6.85 / 7.45 V (u16 table 0x080E2D2E, `FUN_08071790`, +0.10 V going
+  up), low < 6.01 V, recovers at 6.10 V (`FUN_080326b4`); the stock level stands still while flag 0x20000831 is set
+  (looks like TX, not proven). Stock has no percent: every percent is assumed. PE15 is set from 8.40 V and cleared below
+  8.21 V (purpose unknown). 128 px bar: "100%" at x 103, volts at x 83; with Percent the volts give way to LOCK + SCAN.
+  LOCK + SCN / MON just touches the volts; with Icon, LOCK + SCAN overlaps them (as before). `screens/battery_percent.png`.
 * Key functions: only the two side keys, `Key PF1` (slot P1) and `Key PF2` (slot P2) appear in Settings; PF1 long =
   mode list as before.
 * Backlight (v0.4): PB0 = TMR8_CH2N PWM, levels 1100/1200/1300/1400/4095 of 0xFFF as stock (FUN_0803fb58 / FUN_0808d0a4).
@@ -148,6 +154,18 @@ zones / channels / contacts, scan with nuisance delete + monitor (`ui3_scan.png`
 (`shared/tools/aprs_test.py --radio d168`: `XX0AAA>APZCFW,WIDE1-1:!3242.94N/11709.66W>cfw XX0AAA`), CPS round trip with
 radio-menu edits read back (`make emu-test-d168` in cfw_cps), two-radio matrix `emu/txrx_loop.py --simplex --mode all
 --filters --rf-gate --voc 1`: 22/22 PASS.
+
+## Stock CPS common sections (2026-11-23)
+Shared code (`shared/app/stockopt.c`, `stockrun.c`, `ui_stock.c`; table and details in `shared/README.md` "Stock CPS common
+sections"): Optional Settings the cfw can act on, Pre-defined SMS, FM broadcast memories, Auto Repeater Offset
+Frequencies, Device Information, Hot Key + Quick Call, Roaming Channel / Zone (stock "Public"), GPS Roaming, APRS fields,
+channel columns (Busy Lock, PTT Prohibit, Reverse, Correct Frequency, Exclude from roaming). Menu > Radio extras: FM radio,
+Roaming, Hot keys, Options (stock), Device info. No AM air on this radio (no AM Air table in its CPS, no AM receiver).
+D168 board part: `drivers/bcast.c` = FM receiver at I2C 0x10 (RDA5807-style; stock V1.07 FUN_08078058 / FUN_08078078,
+register image 80 00 8B 9A 04 03 85 AF read from the stock RAM in the emulator), `drivers/i2c.c i2c_write` (raw write).
+APRS: the D168 CPS defaults Fixed Location Beacon = on (placeholder 23 N 113 E, never beaconed by the cfw), TOCALL SSID 1,
+path without comma ("WIDE1-1WIDE2-1", split by the cfw). Test: `shared/tools/stockopt_test.py --radio d168`: 23/23 PASS (2026-11-24).
+Bluetooth, Talk Alias and Alarm: "Stock sections, rounds 2 and 3" below. Local Information is live radio data (not in the codeplug).
 
 ## v0.6: pre-flash safety (2026-11-23)
 
@@ -190,7 +208,7 @@ routing, codeplug model-id check.
 | Build | `make` 144 KB / 170 KB RAM, `make EMU=1`, `make HW=1`: no warnings |
 | Boot | boot checks → main screen, no fault; NAND ID 98EB; RF self-test ok; battery 7.7 V (ADC model) |
 | PA5 tune | calibration block read from the emulator NAND; tables equal the stock RAM tables (0x2000ccf6 / 0x2000cd14); 146.52 MHz → 0x5C3 |
-| Baseband | SCT3288 init handshake: 0x17=0E → raw `74 A9 01 00 01 00` → 0x2D → 0x33 version → 0x10 → ready |
+| Baseband | SCT3288 init handshake: 0x17=0E → raw `74 A9 01 00 01 00` → 0x2D 04 → codec 0x0B → 0x33 version → 0x10 0C → ready; then the vocoder probe (`shared/hal/voc_sct.c`) |
 | Keys | keypad, Menu, knob, PF1 mode cycle, PF2 VFO/MEM (`screens/mode_keys_menu.png`) |
 | CPS link | `cfw_cps` `make emu-test-d168`: ident `D168CFW`, 96736 B written + verified, survives power cycle (RESULT: PASS) |
 | Model id | codeplug with header id 0 (D890UV) at 0x080A0000 → ignored (0 channels); id 1 → 1405 channels |
@@ -200,7 +218,7 @@ routing, codeplug model-id check.
 Radio A = 9990201 / XX0AAA, radio B = 9990202 / XX0BBB, built-in simplex channels (FM 1, DMR 5, P25 8, D-STAR 11,
 NXDN 12, YSF 13, P25P2 14); talkaround on the DMR repeater channel 6. Radio A's TMR4 PWM duty (models/Pwm168.cs,
 CCR4 × 4096 / 2500) is played into radio B's ADC1 ch10; tone and SNR are measured on B's decoded PCM (`g_emu_pcm`).
-sine = `--voc 1`, IMBE = `--voc 2`, SCT3288 = `--voc 3` (Baseband168 vocoder stand-in). Reports
+sine = `--voc 1`, IMBE = `--voc 2`, SCT3288 = `--voc 3` (Baseband168 vocoder stand-in; that run used the old AMBE-3000 packets). Reports
 `emu/out/txrx_loop168_{A,B,C,I,S,F,T}.md`, merged `emu/out/txrx_final168.md` (`emu/txrx_summary.py`).
 
 | set | case | IDs on RX radio | tone (RX PCM) | SNR | firmware meter | result |
@@ -255,6 +273,23 @@ The P25P2 firmware meter reads the end-of-call value (wrong tone) while the PCM 
 With the first port (50 ms ADC/DAC rings) P25P2 dropped to 21 dB SINAD; 80 ms rings (as the D890UV) fixed it.
 Cosmetic: some status lines are longer than the 128 px portrait width and get clipped (e.g. "TX TEST: DUMMY LOAD ONLY").
 
+
+## Analog signalling: QDC1200, DTMF, 2Tone, 5Tone, Alert Tone (2026-11-23)
+Shared `app/sig.c` / `sig_dec.c` / `sig_mdc.c` (table in `shared/README.md` "Stock CPS analog signalling sections").
+QDC1200 = MDC1200 (same coder in the stock V1.07: decoder `FUN_08011000`, sync constant 0x092A446F at 0x08013130, see
+`docs/AUDIO_PATHS.md`). D168 columns / tables: QDC1200 Setting (23), QDC1200 Decode (24, Self IDs), QDC Address Book
+(25), channel columns 14-18, 33, 46, 47, 58. TX through PB9 (TMR4_CH4) like every MCU tone; RX on the PC0 audio.
+Emulator: `shared/tools/sig_test.py --radio d168` 29/29 PASS (TX captures decoded off-line, setting
+dialog times measured, RX of generated and captured streams, alert tone), `--defaults` 4/4.
+
+
+## Stock sections, rounds 2 and 3 (2026-11-24)
+Shared code: `app/stockfx.c` (tone squelch, NOAA, TBST, idle tones, Auto Scan, password lock), `app/stockdlg.c` (.rdt-only
+dialogs), `app/emerg.c` (emergency alarm, Work Alone); see `shared/README.md`. D168UV only: `drivers/bt.c` talks AT text to
+the Bluetooth module on USART4 (IRQ 52): probe, version, name, MICGAIN / SPKGAIN. Pins PC10 / PC11 are assumed, not
+verified on hardware; no BT audio, PTT or pairing. No AM air band. Per-column states:
+`shared/docs/STOCK_COLUMNS.md`. Test: `shared/tools/stockfx_test.py --radio d168`: all runs PASS (2026-11-24); other
+suites, bugs fixed and what is not tested: `shared/README.md`.
 
 ## Repository layout
 

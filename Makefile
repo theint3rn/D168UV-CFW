@@ -36,6 +36,8 @@ ifeq ($(DEBUG),1)
 BUILD   := $(BUILD)_dbg
 KEEP_SWD := 1
 endif
+# BUILD_SUFFIX=_x: own build dir (build_x/...) when several people build at once
+BUILD   := $(BUILD)$(BUILD_SUFFIX)
 TARGET  := $(BUILD)/cfw168
 
 SRCS := startup/startup.c $(wildcard drivers/*.c) app/main.c \
