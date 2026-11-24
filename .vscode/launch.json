@@ -1,0 +1,75 @@
+{
+  "//": "Attach only (cortex-debug extension). Build first: make DEBUG=1. Flash with tools/hw/hw.py flash, never from the IDE (the OpenOCD configs refuse GDB flash writes; do not use 'launch' with J-Link).",
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "D168 cfw: attach J-Link",
+      "servertype": "jlink",
+      "device": "AT32F403AVGT7",
+      "interface": "swd",
+      "serverArgs": [
+        "-noir",
+        "-nohalt"
+      ],
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/build_dbg/cfw168.elf",
+      "request": "attach",
+      "type": "cortex-debug",
+      "rttConfig": {
+        "enabled": true,
+        "address": "auto",
+        "decoders": [
+          {
+            "label": "cfw log",
+            "port": 0,
+            "type": "console"
+          }
+        ]
+      }
+    },
+    {
+      "name": "D168 cfw: attach OpenOCD (ST-Link)",
+      "servertype": "openocd",
+      "configFiles": [
+        "${workspaceFolder}/../../D890UV/D890UV_src/tools/hw/openocd_d168_stlink.cfg"
+      ],
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/build_dbg/cfw168.elf",
+      "request": "attach",
+      "type": "cortex-debug",
+      "rttConfig": {
+        "enabled": true,
+        "address": "auto",
+        "decoders": [
+          {
+            "label": "cfw log",
+            "port": 0,
+            "type": "console"
+          }
+        ]
+      }
+    },
+    {
+      "name": "D168 cfw: attach OpenOCD (J-Link)",
+      "servertype": "openocd",
+      "configFiles": [
+        "${workspaceFolder}/../../D890UV/D890UV_src/tools/hw/openocd_d168_jlink.cfg"
+      ],
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/build_dbg/cfw168.elf",
+      "request": "attach",
+      "type": "cortex-debug",
+      "rttConfig": {
+        "enabled": true,
+        "address": "auto",
+        "decoders": [
+          {
+            "label": "cfw log",
+            "port": 0,
+            "type": "console"
+          }
+        ]
+      }
+    }
+  ]
+}
