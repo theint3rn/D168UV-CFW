@@ -59,6 +59,8 @@ make HW=1 HW_DTX=1  # + digital-mode TX through PB9 PWM: DUMMY LOAD ONLY, not be
 make HW=1 HW_NOTX=1 # every TX refused ("TX inhibited"): first smoke test on a real radio (build_hw_notx/)
 make HW=1 HW_SAVE=1 # CPS link (USART1 PA9/PA10) + codeplug/settings flash writes, range-checked; jack PTT (PA10) not
                     # read. ONLY AFTER THE OWNER OKs FLASH WRITES (build_hw_save/)
+make HW=1 HW_SAVE=1 HW_PASSWORD=1 # ... also enforces the codeplug power-on password (build_hw_save_pw/); the other HW builds
+                    # ignore it ("PASSWORD OFF / HW build"), see shared/README.md
 python3 ../../D890UV/D890UV_src/cfw/tools/preflash_test.py --radio d168   # emulator: pre-flash safety fixes F1-F9
 make emu        # build + 6 s in the D168 emulator
 ```
@@ -289,7 +291,7 @@ dialogs), `app/emerg.c` (emergency alarm, Work Alone); see `shared/README.md`. D
 the Bluetooth module on USART4 (IRQ 52): probe, version, name, MICGAIN / SPKGAIN. Pins PC10 / PC11 are assumed, not
 verified on hardware; no BT audio, PTT or pairing. No AM air band. Per-column states:
 `shared/docs/STOCK_COLUMNS.md`. Test: `shared/tools/stockfx_test.py --radio d168`: all runs PASS (2026-11-24); other
-suites, bugs fixed and what is not tested: `shared/README.md`.
+suites, bugs fixed and what is not tested: `shared/README.md`. RF registers and GPIO against stock: `shared/docs/RF_COMPARE.md`.
 
 ## Repository layout
 

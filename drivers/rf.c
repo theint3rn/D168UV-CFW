@@ -140,7 +140,7 @@ static const struct rv k_ch_pre[] = {
     {0x2D, 0x3205}, {0x2F, 0x0A0F}, {0x16, 0x0000}, {0x3F, 0x3232},
 };
 static const struct rv k_ch_post[] = {
-    {0x12, 0x2010}, {0x13, 0x0018}, {0x10, 0xA3E0}, {0x11, 0x0000},
+    {0x12, 0x2010}, {0x13, 0x0018},
     {0x2E, 0x153B}, {0x2E, 0x2485}, {0x2E, 0x558B}, {0x2E, 0x74EB}, {0x2C, 0x3850}, {0x2D, 0x2215}, {0x2E, 0xE9D9},
 };
 /* FUN_0808cf2c transmit branch (FUN_0800b9f8() != 0) + FUN_08070dca(1) + FUN_08070b88(0xf): same values as the
@@ -217,36 +217,58 @@ void rf_set_sql(int level)
 
 uint16_t rf_sql_thr(void) { return s_thr; }
 
+static bool s_rxing;                            /* receiver running (rf_rx_fm done) */
+static void band_rx(int chip)                   /* band dependent part of the receive state */
+{
+    bool u = uhf(s_freq);
+    rf_write(chip, 0x5F, u ? 0x0569 : 0x0468);
+    sw_set(chip, 5, false);
+    sw_set(chip, 7, u);
+    sw_set(chip, 4, !u);
+}
 void rf_set_freq(int chip, uint32_t hz)
 {
+    bool band = uhf(hz) != uhf(s_freq);
     s_freq = hz;
+    if(s_rxing) { rf_write(chip, 0x56, 0x0000); }       /* stock: receiver off around every frequency change */
     rf_write(chip, 0x69, (uint16_t)(hz >> 16));
     rf_write(chip, 0x68, (uint16_t)hz);
+    if(s_rxing && band) { write_list(chip, uhf(hz) ? k_band_uhf : k_band_vhf, uhf(hz) ? N(k_band_uhf) : N(k_band_vhf)); }
     sql_write(chip);
+    if(s_rxing) {
+        if(band) { band_rx(chip); }
+        dac_rx_tune(hz);
+        rf_write(chip, 0x56, 0x0001);
+    }
 }
 
 /* Receive set-up, stock order from the trace: 56 = 0, 52 idx0 = 0, frequency, channel regs, band table, RX filters,
  * 48 (FUN_0808fd14(0): 0x082E analog, 0x09FE digital), 49 squelch level, 30 (FUN_0807c304: 0x5F75 / 0x5F65),
  * 5C 0, 58, 5F / 60 by band, 56 = 1 (receive), then the band switches (52 idx 7 / 4).
- * Squelch level reg 0x49 (0x0097 UHF / 0x00A7 VHF in the trace) = stock FUN_0807bf6c threshold (sql_write). The analog /
- * digital choice of reg 0x48 and the 0x30 wide / narrow mapping are not confirmed; the cfw uses 0x082E for analog
- * FM (channel mode from radio_current()) and 0x5F75 = wide. PA5 tune voltage (drivers/dac.c) follows the frequency. */
+ * Squelch level reg 0x49 (0x0097 UHF / 0x00A7 VHF in the trace) = stock FUN_0807bf6c threshold (sql_write). Analog /
+ * digital values of 0x2A, 0x10, 0x11, 0x18, 0x48, 0x30 checked 2026-11-24 against the stock code and a trace of an analog
+ * channel (D890UV_src/cfw/docs/RF_COMPARE.md; before, analog channels got the digital values). PA5 tune voltage
+ * (drivers/dac.c) follows the frequency. */
 void rf_rx_fm(int chip, bool wide)
 {
     bool u = uhf(s_freq);
+    s_rxing = false;
     rf_write(chip, 0x56, 0x0000);
-    rf_write(chip, 0x52, 0x0040);
+    sw_set(chip, 0, false);
     rf_set_freq(chip, s_freq);
     write_list(chip, k_ch_pre, N(k_ch_pre));
     write_list(chip, u ? k_band_uhf : k_band_vhf, u ? N(k_band_uhf) : N(k_band_vhf));
-    rf_write(chip, 0x2A, 0x108C);
+    bool fm = radio_current()->mode == CFW_MODE_FM;
+    rf_write(chip, 0x2A, fm ? 0x1084 : 0x108C);         /* FUN_0808f560(1, 4 / 0xC) */
     write_list(chip, k_rx, N(k_rx));
+    rf_write(chip, 0x10, fm ? 0xA3A3 : 0xA3E0);         /* FUN_0807babc */
+    rf_write(chip, 0x11, fm ? 0x041A : 0x0000);
+    if(fm) { rf_write(chip, 0x18, 0x006E); }
     write_list(chip, k_ch_post, N(k_ch_post));
     if(s_vox) { vox_regs(); }
-    bool fm = radio_current()->mode == CFW_MODE_FM;
-    rf_write(chip, 0x48, fm ? 0x082E : 0x09FE);
+    rf_write(chip, 0x48, !fm ? 0x09FE : wide ? 0x9826 : 0x082E);   /* FUN_0808fd14 */
     sql_write(chip);                                    /* stock: 0x0097 / 0x00A7 on the trace's default channel */
-    rf_write(chip, 0x30, wide ? 0x5F75 : 0x5F65);
+    rf_write(chip, 0x30, fm ? 0x5F65 : 0x5F75);         /* FUN_0807c304 */
     rf_write(chip, 0x5C, 0x0000);
     rf_write(chip, 0x58, 0xF1F0);
     rf_write(chip, 0x5F, u ? 0x0569 : 0x0468);
@@ -256,6 +278,7 @@ void rf_rx_fm(int chip, bool wide)
     sw_set(chip, 7, u);
     sw_set(chip, 4, !u);
     dac_rx_tune(s_freq);
+    s_rxing = true;
     audio_route(fm ? AUDIO_RF : AUDIO_BB);
 }
 
@@ -269,6 +292,11 @@ void rf_tx_fm(int chip, bool on)
 {
     if(on) {
         audio_route(AUDIO_MUTE);
+        s_rxing = false;
+        sw_set(chip, 7, false);                         /* stock trace: receive path switches off, switch 0 on */
+        sw_set(chip, 4, false);
+        rf_write(chip, 0x56, 0x0000);
+        sw_set(chip, 0, true);
         rf_set_freq(chip, s_freq);
         rf_write(chip, 0x48, 0x082E);
         write_list(chip, k_tx, N(k_tx));
@@ -304,6 +332,7 @@ int rf_rssi_dbm(uint16_t raw) { return (int)raw / 2 - 160; }
 void rf_idle(int chip)
 {
     rf_write(chip, 0x30, 0x5F00);                      /* stock FUN_080929b4(1) */
+    s_rxing = false;
     audio_route(AUDIO_MUTE);
 }
 

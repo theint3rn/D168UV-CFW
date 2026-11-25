@@ -6,7 +6,7 @@
  * (stock parser FUN_0813af78, message entry = frame + 5; MCU writer FUN_0810a674, reader FUN_0810a6dc).
  * Reading = clocking a dummy byte equal to the last byte sent (stock FUN_08103838 resends DAT_2001deee).
  *
- * Init (stock FUN_080fa16c -> FUN_080e70ec -> FUN_080e6c64, see CLAUDE.md "Baseband"):
+ * Init (stock FUN_080fa16c -> FUN_080e70ec -> FUN_080e6c64, see project notes "Baseband"):
  *   1. wait ID 0x17 status 0x0E (FUN_0810061c)
  *   2. send the raw 6-byte config 74 A9 01 00 01 00 (FUN_08100664, not a framed message)
  *   3. wait ID 0x17 status 00/01 (FUN_081005cc)
